@@ -1,10 +1,14 @@
+# ==========================================
+# IMPORTACIÓN DE LIBRERÍAS
+# ==========================================
+
 from flask import Flask, render_template, request, redirect, url_for, send_file
 from Conexion.conexion import obtener_conexion
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from fpdf import FPDF
 import io
 
-# 🔥 IMPORTAR SERVICES
+# Importación de servicios (capa lógica)
 from services.producto_service import (
     obtener_productos,
     insertar_producto,
@@ -13,22 +17,30 @@ from services.producto_service import (
     eliminar_producto
 )
 
-app = Flask(__name__)
-app.secret_key = "clave_secreta"
+# ==========================================
+# CONFIGURACIÓN DE LA APLICACIÓN
+# ==========================================
 
-# =========================
-# LOGIN CONFIG
-# =========================
+app = Flask(__name__)
+app.secret_key = "clave_secreta"  # Clave para sesiones
+
+# ==========================================
+# CONFIGURACIÓN DE LOGIN
+# ==========================================
 
 login_manager = LoginManager()
 login_manager.init_app(app)
-login_manager.login_view = "login"
+login_manager.login_view = "login"  # Redirige al login si no está autenticado
 
-# =========================
-# MODELO USUARIO
-# =========================
+# ==========================================
+# MODELO DE USUARIO (POO)
+# ==========================================
 
 class Usuario(UserMixin):
+    """
+    Clase que representa un usuario del sistema.
+    Se utiliza para manejar la autenticación con Flask-Login.
+    """
     def __init__(self, id_usuario, nombre, email, password):
         self.id = id_usuario
         self.nombre = nombre
@@ -38,6 +50,10 @@ class Usuario(UserMixin):
 
 @login_manager.user_loader
 def load_user(user_id):
+    """
+    Carga un usuario desde la base de datos
+    a partir de su ID (requerido por Flask-Login)
+    """
     conexion = obtener_conexion()
     cursor = conexion.cursor()
 
@@ -49,44 +65,52 @@ def load_user(user_id):
         return Usuario(user[0], user[1], user[2], user[3])
     return None
 
-# =========================
+# ==========================================
 # RUTAS PRINCIPALES
-# =========================
+# ==========================================
 
 @app.route('/')
 def home():
+    """Página principal"""
     return render_template('index.html')
 
 
 @app.route('/about')
 def about():
+    """Página de información"""
     return render_template('about.html')
 
 
-# 🔥 PANEL CORREGIDO (IMPORTANTE)
 @app.route('/panel')
 @login_required
 def panel():
+    """Panel principal del usuario"""
     return render_template('panel.html')
 
 
 @app.route('/factura')
 @login_required
 def factura():
+    """Vista de facturas"""
     return render_template('factura.html')
 
 
 @app.route('/clientes')
 @login_required
 def clientes():
+    """Vista de clientes"""
     return render_template('clientes.html')
 
-# =========================
-# LOGIN
-# =========================
+# ==========================================
+# AUTENTICACIÓN (LOGIN / REGISTRO)
+# ==========================================
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    """
+    Permite a los usuarios iniciar sesión.
+    Verifica credenciales en la base de datos.
+    """
     if request.method == 'POST':
         email = request.form['email'].strip()
         password = request.form['password'].strip()
@@ -115,12 +139,12 @@ def login():
 
     return render_template('login.html')
 
-# =========================
-# REGISTRO
-# =========================
 
 @app.route('/registro', methods=['GET', 'POST'])
 def registro():
+    """
+    Permite registrar nuevos usuarios en el sistema.
+    """
     if current_user.is_authenticated:
         return redirect(url_for('panel'))
 
@@ -133,6 +157,7 @@ def registro():
             conexion = obtener_conexion()
             cursor = conexion.cursor()
 
+            # Verificar si el usuario ya existe
             cursor.execute("SELECT * FROM usuarios WHERE email=%s", (email,))
             existente = cursor.fetchone()
 
@@ -140,6 +165,7 @@ def registro():
                 conexion.close()
                 return "El correo ya existe"
 
+            # Insertar nuevo usuario
             cursor.execute(
                 "INSERT INTO usuarios (nombre, email, password) VALUES (%s, %s, %s)",
                 (nombre, email, password)
@@ -155,23 +181,22 @@ def registro():
 
     return render_template('registro.html')
 
-# =========================
-# LOGOUT
-# =========================
 
 @app.route('/logout')
 @login_required
 def logout():
+    """Cerrar sesión del usuario"""
     logout_user()
     return redirect(url_for('login'))
 
-# =========================
-# PRODUCTOS CRUD
-# =========================
+# ==========================================
+# CRUD DE PRODUCTOS
+# ==========================================
 
 @app.route('/productos')
 @login_required
 def productos():
+    """Mostrar lista de productos"""
     try:
         datos = obtener_productos()
         return render_template('productos/listar.html', productos=datos)
@@ -182,6 +207,7 @@ def productos():
 @app.route('/productos/agregar', methods=['GET', 'POST'])
 @login_required
 def agregar_producto():
+    """Agregar un nuevo producto"""
     if request.method == 'POST':
         try:
             nombre = request.form['nombre'].strip()
@@ -189,7 +215,6 @@ def agregar_producto():
             precio = float(request.form['precio'])
 
             insertar_producto(nombre, cantidad, precio)
-
             return redirect(url_for('productos'))
 
         except Exception as e:
@@ -201,6 +226,7 @@ def agregar_producto():
 @app.route('/productos/editar/<int:id>', methods=['GET', 'POST'])
 @login_required
 def editar_producto(id):
+    """Editar un producto existente"""
     if request.method == 'POST':
         try:
             nombre = request.form['nombre'].strip()
@@ -208,7 +234,6 @@ def editar_producto(id):
             precio = float(request.form['precio'])
 
             actualizar_producto(id, nombre, cantidad, precio)
-
             return redirect(url_for('productos'))
 
         except Exception as e:
@@ -221,19 +246,23 @@ def editar_producto(id):
 @app.route('/productos/eliminar/<int:id>')
 @login_required
 def eliminar_producto_route(id):
+    """Eliminar un producto"""
     try:
         eliminar_producto(id)
         return redirect(url_for('productos'))
     except Exception as e:
         return f"Error: {e}"
 
-# =========================
-# REPORTE PDF
-# =========================
+# ==========================================
+# GENERACIÓN DE REPORTE PDF
+# ==========================================
 
 @app.route('/reporte')
 @login_required
 def reporte():
+    """
+    Genera un reporte en PDF con la lista de productos.
+    """
     try:
         datos = obtener_productos()
 
@@ -259,9 +288,9 @@ def reporte():
     except Exception as e:
         return f"Error: {e}"
 
-# =========================
-# EJECUTAR
-# =========================
+# ==========================================
+# EJECUCIÓN DE LA APLICACIÓN
+# ==========================================
 
 if __name__ == '__main__':
     app.run(debug=True)
