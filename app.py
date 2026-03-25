@@ -1,24 +1,24 @@
-# Aplicación Flask para un Sistema Avanzado de Gestión de Inventario
-
-from flask import Flask, render_template, request, redirect, url_for
-from models.producto import Producto
-from models.inventario import Inventario
-from db import get_connection
+from flask import Flask, render_template, request, redirect, url_for, send_file
 from Conexion.conexion import obtener_conexion
-
-from flask_sqlalchemy import SQLAlchemy
-
-# 🔐 LOGIN
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from fpdf import FPDF
+import io
 
-import json
-import csv
-import os
+# 🔥 IMPORTAR SERVICES
+from services.producto_service import (
+    obtener_productos,
+    insertar_producto,
+    obtener_producto,
+    actualizar_producto,
+    eliminar_producto
+)
 
 app = Flask(__name__)
-
-# 🔐 CONFIG LOGIN
 app.secret_key = "clave_secreta"
+
+# =========================
+# LOGIN CONFIG
+# =========================
 
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -43,142 +43,11 @@ def load_user(user_id):
 
     cursor.execute("SELECT * FROM usuarios WHERE id_usuario = %s", (user_id,))
     user = cursor.fetchone()
-
     conexion.close()
 
     if user:
         return Usuario(user[0], user[1], user[2], user[3])
     return None
-
-# =========================
-# CONFIGURACIÓN SQLAlchemy
-# =========================
-
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///inventario.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-db = SQLAlchemy(app)
-
-# =========================
-# MODELO ORM
-# =========================
-
-class ProductoORM(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    nombre = db.Column(db.String(100))
-    cantidad = db.Column(db.Integer)
-    precio = db.Column(db.Float)
-
-# =========================
-# Inventario
-# =========================
-
-inventario = Inventario()
-
-conn = get_connection()
-cursor = conn.cursor()
-
-cursor.execute("SELECT COUNT(*) FROM productos")
-
-if cursor.fetchone()[0] == 0:
-    inventario.agregar_producto(Producto(1, "Martillo", 10, 5.50))
-    inventario.agregar_producto(Producto(2, "Clavos", 100, 0.10))
-    inventario.agregar_producto(Producto(3, "Taladro", 5, 120.00))
-
-conn.close()
-
-# =========================
-# 🔑 LOGIN
-# =========================
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-
-    if request.method == 'POST':
-        email = request.form['email']
-        password = request.form['password']
-
-        conexion = obtener_conexion()
-        cursor = conexion.cursor()
-
-        cursor.execute(
-            "SELECT * FROM usuarios WHERE email = %s AND password = %s",
-            (email, password)
-        )
-
-        user = cursor.fetchone()
-        conexion.close()
-
-        if user:
-            usuario = Usuario(user[0], user[1], user[2], user[3])
-            login_user(usuario)
-            return redirect(url_for('panel'))
-
-        return "Credenciales incorrectas"
-
-    return render_template('login.html')
-
-
-# =========================
-# 📝 REGISTRO
-# =========================
-
-@app.route('/registro', methods=['GET', 'POST'])
-def registro():
-
-    # 🔒 SI YA ESTÁ LOGUEADO, LO REDIRIGE
-    if current_user.is_authenticated:
-        return redirect(url_for('panel'))
-
-    if request.method == 'POST':
-        nombre = request.form['nombre']
-        email = request.form['email']
-        password = request.form['password']
-
-        conexion = obtener_conexion()
-        cursor = conexion.cursor()
-
-        # Verificar si ya existe el email
-        cursor.execute("SELECT * FROM usuarios WHERE email = %s", (email,))
-        existente = cursor.fetchone()
-
-        if existente:
-            conexion.close()
-            return "El correo ya está registrado"
-
-        # Insertar nuevo usuario
-        sql = "INSERT INTO usuarios (nombre, email, password) VALUES (%s, %s, %s)"
-        valores = (nombre, email, password)
-
-        cursor.execute(sql, valores)
-        conexion.commit()
-        conexion.close()
-
-        return redirect(url_for('login'))
-
-    return render_template('registro.html')
-
-
-# =========================
-# 🔓 LOGOUT
-# =========================
-
-@app.route('/logout')
-@login_required
-def logout():
-    logout_user()
-    return redirect(url_for('login'))
-
-
-# =========================
-# 🔐 PANEL PROTEGIDO
-# =========================
-
-@app.route('/panel')
-@login_required
-def panel():
-    return f"Bienvenido {current_user.nombre}"
-
 
 # =========================
 # RUTAS PRINCIPALES
@@ -194,29 +63,12 @@ def about():
     return render_template('about.html')
 
 
-@app.route('/productos')
+# 🔥 PANEL CORREGIDO (IMPORTANTE)
+@app.route('/panel')
 @login_required
-def productos():
-    productos = inventario.obtener_todos()
-    return render_template('productos.html', productos=productos)
+def panel():
+    return render_template('panel.html')
 
-
-# =========================
-# BUSCAR PRODUCTOS
-# =========================
-
-@app.route('/productos/buscar')
-@login_required
-def buscar_producto():
-    nombre = request.args.get('nombre', '')
-    productos = inventario.buscar_por_nombre(nombre)
-
-    return render_template('productos.html', productos=productos, busqueda=nombre)
-
-
-# =========================
-# OTRAS PÁGINAS
-# =========================
 
 @app.route('/factura')
 @login_required
@@ -229,69 +81,183 @@ def factura():
 def clientes():
     return render_template('clientes.html')
 
+# =========================
+# LOGIN
+# =========================
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form['email'].strip()
+        password = request.form['password'].strip()
+
+        try:
+            conexion = obtener_conexion()
+            cursor = conexion.cursor()
+
+            cursor.execute(
+                "SELECT * FROM usuarios WHERE email=%s AND password=%s",
+                (email, password)
+            )
+
+            user = cursor.fetchone()
+            conexion.close()
+
+            if user:
+                usuario = Usuario(user[0], user[1], user[2], user[3])
+                login_user(usuario)
+                return redirect(url_for('panel'))
+
+            return "Credenciales incorrectas"
+
+        except Exception as e:
+            return f"Error: {e}"
+
+    return render_template('login.html')
 
 # =========================
-# CRUD PRODUCTOS
+# REGISTRO
 # =========================
+
+@app.route('/registro', methods=['GET', 'POST'])
+def registro():
+    if current_user.is_authenticated:
+        return redirect(url_for('panel'))
+
+    if request.method == 'POST':
+        nombre = request.form['nombre'].strip()
+        email = request.form['email'].strip()
+        password = request.form['password'].strip()
+
+        try:
+            conexion = obtener_conexion()
+            cursor = conexion.cursor()
+
+            cursor.execute("SELECT * FROM usuarios WHERE email=%s", (email,))
+            existente = cursor.fetchone()
+
+            if existente:
+                conexion.close()
+                return "El correo ya existe"
+
+            cursor.execute(
+                "INSERT INTO usuarios (nombre, email, password) VALUES (%s, %s, %s)",
+                (nombre, email, password)
+            )
+
+            conexion.commit()
+            conexion.close()
+
+            return redirect(url_for('login'))
+
+        except Exception as e:
+            return f"Error: {e}"
+
+    return render_template('registro.html')
+
+# =========================
+# LOGOUT
+# =========================
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
+# =========================
+# PRODUCTOS CRUD
+# =========================
+
+@app.route('/productos')
+@login_required
+def productos():
+    try:
+        datos = obtener_productos()
+        return render_template('productos/listar.html', productos=datos)
+    except Exception as e:
+        return f"Error: {e}"
+
 
 @app.route('/productos/agregar', methods=['GET', 'POST'])
 @login_required
 def agregar_producto():
-
     if request.method == 'POST':
-        id = int(request.form['id'])
-        nombre = request.form['nombre']
-        cantidad = int(request.form['cantidad'])
-        precio = float(request.form['precio'])
+        try:
+            nombre = request.form['nombre'].strip()
+            cantidad = int(request.form['cantidad'])
+            precio = float(request.form['precio'])
 
-        inventario.agregar_producto(Producto(id, nombre, cantidad, precio))
+            insertar_producto(nombre, cantidad, precio)
 
-        return redirect(url_for('productos'))
+            return redirect(url_for('productos'))
 
-    return render_template('agregar_producto.html')
+        except Exception as e:
+            return f"Error: {e}"
+
+    return render_template('productos/agregar.html')
+
+
+@app.route('/productos/editar/<int:id>', methods=['GET', 'POST'])
+@login_required
+def editar_producto(id):
+    if request.method == 'POST':
+        try:
+            nombre = request.form['nombre'].strip()
+            cantidad = int(request.form['cantidad'])
+            precio = float(request.form['precio'])
+
+            actualizar_producto(id, nombre, cantidad, precio)
+
+            return redirect(url_for('productos'))
+
+        except Exception as e:
+            return f"Error: {e}"
+
+    producto = obtener_producto(id)
+    return render_template('productos/editar.html', producto=producto)
 
 
 @app.route('/productos/eliminar/<int:id>')
 @login_required
-def eliminar_producto(id):
-    inventario.eliminar_producto(id)
-    return redirect(url_for('productos'))
-
+def eliminar_producto_route(id):
+    try:
+        eliminar_producto(id)
+        return redirect(url_for('productos'))
+    except Exception as e:
+        return f"Error: {e}"
 
 # =========================
-# DATOS TXT
+# REPORTE PDF
 # =========================
 
-@app.route('/ver_txt')
+@app.route('/reporte')
 @login_required
-def ver_txt():
-    ruta = os.path.join('data', 'datos.txt')
-    datos = []
+def reporte():
+    try:
+        datos = obtener_productos()
 
-    if os.path.exists(ruta):
-        with open(ruta, 'r') as f:
-            datos = f.readlines()
+        pdf = FPDF()
+        pdf.add_page()
 
-    return render_template('datos.html', datos=datos)
+        pdf.set_font("Arial", "B", 14)
+        pdf.cell(200, 10, txt="REPORTE DE PRODUCTOS", ln=True)
 
+        pdf.set_font("Arial", size=12)
 
-# =========================
-# USUARIOS MYSQL
-# =========================
+        for p in datos:
+            pdf.cell(200, 8, txt=f"ID: {p[0]} | {p[1]} | Cantidad: {p[2]} | Precio: ${p[3]}", ln=True)
 
-@app.route('/usuarios')
-@login_required
-def usuarios():
-    conexion = obtener_conexion()
-    cursor = conexion.cursor()
+        pdf_output = pdf.output(dest='S').encode('latin-1')
 
-    cursor.execute("SELECT * FROM usuarios")
-    usuarios = cursor.fetchall()
+        return send_file(
+            io.BytesIO(pdf_output),
+            download_name="reporte_productos.pdf",
+            as_attachment=True
+        )
 
-    conexion.close()
-
-    return render_template("usuarios.html", usuarios=usuarios)
-
+    except Exception as e:
+        return f"Error: {e}"
 
 # =========================
 # EJECUTAR

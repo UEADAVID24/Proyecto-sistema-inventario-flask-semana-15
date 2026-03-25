@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<div class="container mt-4">
+
+    <h2 class="mb-4">👋 Bienvenido {{ current_user.nombre }}</h2>
+
+    <div class="row">
+
+        <!-- PRODUCTOS -->
+        <div class="col-md-4">
+            <div class="card text-white bg-primary mb-3 shadow">
+                <div class="card-body text-center">
+                    <h5 class="card-title">📦 Productos</h5>
+                    <p class="card-text">Gestiona tu inventario</p>
+                    <a href="{{ url_for('productos') }}" class="btn btn-light">
+                        Ver Productos
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- CLIENTES -->
+        <div class="col-md-4">
+            <div class="card text-white bg-success mb-3 shadow">
+                <div class="card-body text-center">
+                    <h5 class="card-title">👥 Clientes</h5>
+                    <p class="card-text">Administrar clientes</p>
+                    <a href="{{ url_for('clientes') }}" class="btn btn-light">
+                        Ver Clientes
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- FACTURAS -->
+        <div class="col-md-4">
+            <div class="card text-white bg-warning mb-3 shadow">
+                <div class="card-body text-center">
+                    <h5 class="card-title">🧾 Facturas</h5>
+                    <p class="card-text">Control de ventas</p>
+                    <a href="{{ url_for('factura') }}" class="btn btn-light">
+                        Ver Facturas
+                    </a>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- BOTONES EXTRA -->
+    <div class="text-center mt-4">
+        <a href="{{ url_for('productos') }}" class="btn btn-outline-primary">
+            ➕ Agregar Producto
+        </a>
+
+        <a href="{{ url_for('reporte') }}" class="btn btn-outline-success">
+            📄 Descargar Reporte PDF
+        </a>
+    </div>
+
+</div>
+
+{% endblock %}
