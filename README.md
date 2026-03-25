@@ -1,6 +1,6 @@
-# 🏪 Sistema Avanzado de Gestión de Inventario – Flask
+# Sistema Avanzado de Gestión de Inventario – Flask
 
-## 📌 Descripción del Proyecto
+## Descripción del Proyecto
 
 Este proyecto consiste en el desarrollo de un **Sistema Avanzado de Gestión de Inventario** utilizando Flask, como evolución de las semanas anteriores.
 
@@ -8,9 +8,8 @@ El sistema permite gestionar productos mediante operaciones CRUD (Crear, Leer, A
 
 Se aplicó una arquitectura por capas (models, services, forms) para organizar el código de manera modular y profesional.
 
----
 
-## 🎯 Objetivos
+## Objetivos
 
 * Implementar un sistema web con operaciones CRUD completas.
 * Integrar una base de datos relacional (MySQL).
@@ -20,9 +19,8 @@ Se aplicó una arquitectura por capas (models, services, forms) para organizar e
 * Generar reportes en PDF desde la aplicación.
 * Diseñar una interfaz web utilizando Jinja2 y Bootstrap.
 
----
 
-## ⚙️ Tecnologías Utilizadas
+## Tecnologías Utilizadas
 
 * Python 3
 * Flask
@@ -33,11 +31,8 @@ Se aplicó una arquitectura por capas (models, services, forms) para organizar e
 * Git y GitHub
 * Visual Studio Code
 
----
+##  Estructura del Proyecto
 
-## 🏗️ Estructura del Proyecto
-
-```
 Mi_proyecto_flask_Clinton_Alvarado_semana15/
 │
 ├── app.py
@@ -66,11 +61,8 @@ Mi_proyecto_flask_Clinton_Alvarado_semana15/
 │
 ├── desarrollo_web.sql
 └── README.md
-```
 
----
-
-## 🗄️ Base de Datos MySQL
+##  Base de Datos MySQL
 
 El sistema utiliza una base de datos MySQL con las siguientes tablas:
 
@@ -82,9 +74,8 @@ Las tablas están relacionadas mediante claves foráneas (FOREIGN KEY).
 
 El archivo `desarrollo_web.sql` contiene la estructura completa de la base de datos.
 
----
 
-## 🔐 Autenticación de Usuarios
+## Autenticación de Usuarios
 
 El sistema incluye:
 
@@ -93,9 +84,8 @@ El sistema incluye:
 * Cierre de sesión
 * Protección de rutas con `login_required`
 
----
 
-## 🔄 Operaciones CRUD
+##  Operaciones CRUD
 
 El sistema permite realizar:
 
@@ -104,9 +94,8 @@ El sistema permite realizar:
 * **Actualizar:** Editar productos existentes
 * **Eliminar:** Eliminar productos con confirmación
 
----
 
-## 📄 Generación de Reportes
+## Generación de Reportes
 
 Se implementa la generación de reportes en PDF utilizando la librería **FPDF**.
 
@@ -115,9 +104,8 @@ El reporte incluye:
 * Listado de productos
 * Información clara y organizada
 
----
 
-## 🖥️ Interfaz de Usuario
+## Interfaz de Usuario
 
 La aplicación cuenta con:
 
@@ -127,37 +115,26 @@ La aplicación cuenta con:
 * Tablas dinámicas
 * Estilos con Bootstrap
 
----
 
-## 🚀 Ejecución del Proyecto
+## Ejecución del Proyecto
 
 1️⃣ Instalar dependencias
 
-```
 pip install -r requirements.txt
-```
 
 2️⃣ Configurar la base de datos MySQL
 
 Importar el archivo:
 
-```
 desarrollo_web.sql
-```
 
 3️⃣ Ejecutar la aplicación
 
-```
 py app.py
-```
 
 4️⃣ Abrir en el navegador
 
-```
 http://127.0.0.1:5000
-```
-
----
 
 ## 👨‍💻 Autor
 
