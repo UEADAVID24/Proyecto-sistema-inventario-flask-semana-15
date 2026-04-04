@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<h2 class="mb-3">💰 Lista de Ventas</h2>
+
+<a href="{{ url_for('agregar_venta') }}" class="btn btn-primary mb-3">
+    ➕ Nueva Venta
+</a>
+
+<table class="table table-bordered table-striped">
+    <thead class="table-dark">
+        <tr>
+            <th>ID</th>
+            <th>Usuario</th>
+            <th>Producto</th>
+            <th>Cliente</th> <!-- NUEVO -->
+            <th>Cantidad</th>
+            <th>Precio</th> <!-- NUEVO -->
+            <th>Fecha</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for v in ventas %}
+        <tr>
+            <td>{{ v[0] }}</td> <!-- id -->
+            <td>{{ v[1] }}</td> <!-- usuario -->
+            <td>{{ v[2] }}</td> <!-- producto -->
+            <td>{{ v[3] }}</td> <!-- cliente -->
+            <td>{{ v[4] }}</td> <!-- cantidad -->
+            <td>${{ v[5] }}</td> <!-- precio -->
+            <td>{{ v[6] }}</td> <!-- fecha -->
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% endblock %}

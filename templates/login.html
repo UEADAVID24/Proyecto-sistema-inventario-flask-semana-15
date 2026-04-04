@@ -2,16 +2,22 @@
 
 {% block content %}
 
-<h2>Iniciar Sesión</h2>
+<h2>🔐 Iniciar Sesión</h2>
 
 <form method="POST">
-    <label>Correo:</label><br>
-    <input type="email" name="email" required><br><br>
+    <div class="mb-3">
+        <label>Correo:</label>
+        <input type="email" name="email" class="form-control" required>
+    </div>
 
-    <label>Contraseña:</label><br>
-    <input type="password" name="password" required><br><br>
+    <div class="mb-3">
+        <label>Contraseña:</label>
+        <input type="password" name="password" class="form-control" required>
+    </div>
 
-    <button type="submit">Ingresar</button>
+    <button type="submit" class="btn btn-primary">Ingresar</button>
 </form>
+
+<a href="/recuperar">¿Olvidaste tu contraseña?</a>
 
 {% endblock %}

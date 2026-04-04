@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<h2>➕ Nueva Venta</h2>
+
+<form method="POST">
+
+    <div class="mb-3">
+        <label>Producto</label>
+        <select name="producto_id" class="form-control" required>
+            {% for p in productos %}
+                <option value="{{ p[0] }}">{{ p[1] }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label>Cliente</label>
+        <select name="cliente_id" class="form-control" required>
+            {% for c in clientes %}
+                <option value="{{ c[0] }}">{{ c[1] }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label>Cantidad</label>
+        <input type="number" name="cantidad" class="form-control" required>
+    </div>
+
+    <div class="mb-3">
+        <label>Precio</label>
+        <input type="number" step="0.01" name="precio" class="form-control" required>
+    </div>
+
+    <button class="btn btn-success">Guardar</button>
+
+</form>
+
+{% endblock %}

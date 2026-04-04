@@ -1,14 +1,18 @@
 # ==========================================
 # IMPORTACIÓN DE LIBRERÍAS
 # ==========================================
-
 from flask import Flask, render_template, request, redirect, url_for, send_file
 from Conexion.conexion import obtener_conexion
-from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from flask_login import LoginManager, UserMixin
 from fpdf import FPDF
 import io
 
-# Importación de servicios (capa lógica)
+# 🔐 SEGURIDAD
+from werkzeug.security import generate_password_hash, check_password_hash
+
+# ==========================================
+# SERVICIOS
+# ==========================================
 from services.producto_service import (
     obtener_productos,
     insertar_producto,
@@ -17,280 +21,247 @@ from services.producto_service import (
     eliminar_producto
 )
 
-# ==========================================
-# CONFIGURACIÓN DE LA APLICACIÓN
-# ==========================================
+from services.venta_service import obtener_ventas
 
+# ==========================================
+# CONFIGURACIÓN
+# ==========================================
 app = Flask(__name__)
-app.secret_key = "clave_secreta"  # Clave para sesiones
-
-# ==========================================
-# CONFIGURACIÓN DE LOGIN
-# ==========================================
+app.secret_key = "clave_secreta"
 
 login_manager = LoginManager()
 login_manager.init_app(app)
-login_manager.login_view = "login"  # Redirige al login si no está autenticado
 
 # ==========================================
-# MODELO DE USUARIO (POO)
+# USUARIO
 # ==========================================
-
 class Usuario(UserMixin):
-    """
-    Clase que representa un usuario del sistema.
-    Se utiliza para manejar la autenticación con Flask-Login.
-    """
     def __init__(self, id_usuario, nombre, email, password):
         self.id = id_usuario
         self.nombre = nombre
         self.email = email
         self.password = password
 
-
 @login_manager.user_loader
 def load_user(user_id):
-    """
-    Carga un usuario desde la base de datos
-    a partir de su ID (requerido por Flask-Login)
-    """
-    conexion = obtener_conexion()
-    cursor = conexion.cursor()
-
-    cursor.execute("SELECT * FROM usuarios WHERE id_usuario = %s", (user_id,))
-    user = cursor.fetchone()
-    conexion.close()
-
-    if user:
-        return Usuario(user[0], user[1], user[2], user[3])
     return None
 
 # ==========================================
 # RUTAS PRINCIPALES
 # ==========================================
-
 @app.route('/')
 def home():
-    """Página principal"""
-    return render_template('index.html')
-
+    return render_template('panel.html')
 
 @app.route('/about')
 def about():
-    """Página de información"""
     return render_template('about.html')
 
-
 @app.route('/panel')
-@login_required
 def panel():
-    """Panel principal del usuario"""
     return render_template('panel.html')
 
-
-@app.route('/factura')
-@login_required
-def factura():
-    """Vista de facturas"""
-    return render_template('factura.html')
-
-
 @app.route('/clientes')
-@login_required
 def clientes():
-    """Vista de clientes"""
     return render_template('clientes.html')
 
 # ==========================================
-# AUTENTICACIÓN (LOGIN / REGISTRO)
+# FACTURA
 # ==========================================
+@app.route('/factura')
+def factura():
+    conexion = obtener_conexion()
+    cursor = conexion.cursor()
 
+    cursor.execute("""
+        SELECT 
+            f.id_factura,
+            c.nombre,
+            f.fecha,
+            f.total
+        FROM facturas f
+        JOIN clientes c ON f.cliente_id = c.id_cliente
+    """)
+
+    datos = cursor.fetchall()
+    conexion.close()
+
+    return render_template('factura.html', datos=datos)
+
+# ==========================================
+# VENTAS
+# ==========================================
+@app.route('/ventas')
+def ventas():
+    datos = obtener_ventas()
+    return render_template('ventas.html', ventas=datos)
+
+# ==========================================
+# LOGIN (🔥 CORREGIDO)
+# ==========================================
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    """
-    Permite a los usuarios iniciar sesión.
-    Verifica credenciales en la base de datos.
-    """
     if request.method == 'POST':
-        email = request.form['email'].strip()
-        password = request.form['password'].strip()
+        email = request.form['email']
+        password = request.form['password']
 
-        try:
-            conexion = obtener_conexion()
-            cursor = conexion.cursor()
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
 
-            cursor.execute(
-                "SELECT * FROM usuarios WHERE email=%s AND password=%s",
-                (email, password)
-            )
+        cursor.execute("SELECT id_usuario, nombre, email, password FROM usuarios WHERE email = %s", (email,))
+        user = cursor.fetchone()
+        conexion.close()
 
-            user = cursor.fetchone()
-            conexion.close()
-
-            if user:
-                usuario = Usuario(user[0], user[1], user[2], user[3])
-                login_user(usuario)
+        if user:
+            if check_password_hash(user[3], password):
                 return redirect(url_for('panel'))
-
-            return "Credenciales incorrectas"
-
-        except Exception as e:
-            return f"Error: {e}"
+            else:
+                return "❌ Contraseña incorrecta"
+        else:
+            return "❌ Usuario no existe"
 
     return render_template('login.html')
 
-
+# ==========================================
+# REGISTRO
+# ==========================================
 @app.route('/registro', methods=['GET', 'POST'])
 def registro():
-    """
-    Permite registrar nuevos usuarios en el sistema.
-    """
-    if current_user.is_authenticated:
-        return redirect(url_for('panel'))
-
     if request.method == 'POST':
-        nombre = request.form['nombre'].strip()
-        email = request.form['email'].strip()
-        password = request.form['password'].strip()
+        nombre = request.form['nombre']
+        email = request.form['email']
+        password = request.form['password']
 
-        try:
-            conexion = obtener_conexion()
-            cursor = conexion.cursor()
+        password_segura = generate_password_hash(password)
 
-            # Verificar si el usuario ya existe
-            cursor.execute("SELECT * FROM usuarios WHERE email=%s", (email,))
-            existente = cursor.fetchone()
+        conexion = obtener_conexion()
+        cursor = conexion.cursor()
 
-            if existente:
-                conexion.close()
-                return "El correo ya existe"
+        cursor.execute(
+            "INSERT INTO usuarios (nombre, email, password) VALUES (%s, %s, %s)",
+            (nombre, email, password_segura)
+        )
 
-            # Insertar nuevo usuario
-            cursor.execute(
-                "INSERT INTO usuarios (nombre, email, password) VALUES (%s, %s, %s)",
-                (nombre, email, password)
-            )
+        conexion.commit()
+        conexion.close()
 
-            conexion.commit()
-            conexion.close()
-
-            return redirect(url_for('login'))
-
-        except Exception as e:
-            return f"Error: {e}"
+        return redirect(url_for('panel'))
 
     return render_template('registro.html')
 
-
-@app.route('/logout')
-@login_required
-def logout():
-    """Cerrar sesión del usuario"""
-    logout_user()
-    return redirect(url_for('login'))
-
 # ==========================================
-# CRUD DE PRODUCTOS
+# PRODUCTOS
 # ==========================================
-
 @app.route('/productos')
-@login_required
 def productos():
-    """Mostrar lista de productos"""
-    try:
-        datos = obtener_productos()
-        return render_template('productos/listar.html', productos=datos)
-    except Exception as e:
-        return f"Error: {e}"
-
+    datos = obtener_productos()
+    return render_template('productos/listar.html', productos=datos)
 
 @app.route('/productos/agregar', methods=['GET', 'POST'])
-@login_required
 def agregar_producto():
-    """Agregar un nuevo producto"""
     if request.method == 'POST':
-        try:
-            nombre = request.form['nombre'].strip()
-            cantidad = int(request.form['cantidad'])
-            precio = float(request.form['precio'])
-
-            insertar_producto(nombre, cantidad, precio)
-            return redirect(url_for('productos'))
-
-        except Exception as e:
-            return f"Error: {e}"
+        insertar_producto(
+            request.form['nombre'],
+            int(request.form['cantidad']),
+            float(request.form['precio'])
+        )
+        return redirect(url_for('productos'))
 
     return render_template('productos/agregar.html')
 
-
+# ==========================================
+# EDITAR PRODUCTO
+# ==========================================
 @app.route('/productos/editar/<int:id>', methods=['GET', 'POST'])
-@login_required
 def editar_producto(id):
-    """Editar un producto existente"""
-    if request.method == 'POST':
-        try:
-            nombre = request.form['nombre'].strip()
-            cantidad = int(request.form['cantidad'])
-            precio = float(request.form['precio'])
-
-            actualizar_producto(id, nombre, cantidad, precio)
-            return redirect(url_for('productos'))
-
-        except Exception as e:
-            return f"Error: {e}"
-
     producto = obtener_producto(id)
+
+    if request.method == 'POST':
+        actualizar_producto(
+            id,
+            request.form['nombre'],
+            int(request.form['cantidad']),
+            float(request.form['precio'])
+        )
+        return redirect(url_for('productos'))
+
     return render_template('productos/editar.html', producto=producto)
 
-
+# ==========================================
+# ELIMINAR PRODUCTO
+# ==========================================
 @app.route('/productos/eliminar/<int:id>')
-@login_required
 def eliminar_producto_route(id):
-    """Eliminar un producto"""
-    try:
-        eliminar_producto(id)
-        return redirect(url_for('productos'))
-    except Exception as e:
-        return f"Error: {e}"
+    eliminar_producto(id)
+    return redirect(url_for('productos'))
 
 # ==========================================
-# GENERACIÓN DE REPORTE PDF
+# PDF
 # ==========================================
-
 @app.route('/reporte')
-@login_required
 def reporte():
-    """
-    Genera un reporte en PDF con la lista de productos.
-    """
-    try:
-        datos = obtener_productos()
 
-        pdf = FPDF()
-        pdf.add_page()
+    conexion = obtener_conexion()
+    cursor = conexion.cursor()
 
-        pdf.set_font("Arial", "B", 14)
-        pdf.cell(200, 10, txt="REPORTE DE PRODUCTOS", ln=True)
+    cursor.execute("""
+        SELECT 
+            v.id,
+            c.nombre,
+            p.nombre,
+            v.cantidad,
+            v.precio,
+            v.fecha
+        FROM ventas v
+        JOIN clientes c ON v.cliente_id = c.id_cliente
+        JOIN productos p ON v.producto_id = p.id_producto
+    """)
 
-        pdf.set_font("Arial", size=12)
+    datos = cursor.fetchall()
+    conexion.close()
 
-        for p in datos:
-            pdf.cell(200, 8, txt=f"ID: {p[0]} | {p[1]} | Cantidad: {p[2]} | Precio: ${p[3]}", ln=True)
+    pdf = FPDF()
+    pdf.add_page()
 
-        pdf_output = pdf.output(dest='S').encode('latin-1')
+    pdf.set_font("Arial", "B", 16)
+    pdf.cell(200, 10, "REPORTE DE VENTAS", ln=True, align='C')
+    pdf.ln(5)
 
-        return send_file(
-            io.BytesIO(pdf_output),
-            download_name="reporte_productos.pdf",
-            as_attachment=True
-        )
+    pdf.set_font("Arial", "B", 10)
+    pdf.set_fill_color(200, 220, 255)
 
-    except Exception as e:
-        return f"Error: {e}"
+    pdf.cell(15, 10, "ID", border=1, align='C', fill=True)
+    pdf.cell(35, 10, "Cliente", border=1, align='C', fill=True)
+    pdf.cell(40, 10, "Producto", border=1, align='C', fill=True)
+    pdf.cell(25, 10, "Cantidad", border=1, align='C', fill=True)
+    pdf.cell(25, 10, "Precio", border=1, align='C', fill=True)
+    pdf.cell(40, 10, "Fecha", border=1, align='C', fill=True)
+    pdf.ln()
+
+    pdf.set_font("Arial", "", 9)
+
+    for v in datos:
+        pdf.cell(15, 10, str(v[0]), border=1, align='C')
+        pdf.cell(35, 10, str(v[1]), border=1)
+        pdf.cell(40, 10, str(v[2]), border=1)
+        pdf.cell(25, 10, str(v[3]), border=1, align='C')
+        pdf.cell(25, 10, "$" + str(v[4]), border=1, align='C')
+        pdf.cell(40, 10, str(v[5]), border=1)
+        pdf.ln()
+
+    total = sum([v[4] for v in datos])
+    pdf.ln(5)
+    pdf.set_font("Arial", "B", 12)
+    pdf.cell(200, 10, f"TOTAL VENTAS: ${total}", ln=True, align='R')
+
+    pdf_output = pdf.output(dest='S').encode('latin-1')
+
+    return send_file(io.BytesIO(pdf_output),
+                     download_name="reporte_ventas.pdf",
+                     as_attachment=True)
 
 # ==========================================
-# EJECUCIÓN DE LA APLICACIÓN
+# RUN
 # ==========================================
-
 if __name__ == '__main__':
     app.run(debug=True)
